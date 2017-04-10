@@ -641,7 +641,12 @@ BasicType2:
 
 BasicType:
 	TYPENAME
-		{ $$ = $1.type; }
+		{ if (TYPE_CODE ($1.type) == TYPE_CODE_STRUCT
+		      && TYPE_DECLARED_CLASS ($1.type))
+		    $$ = lookup_pointer_type ($1.type);
+		  else
+		    $$ = $1.type;
+		}
 ;
 
 %%
