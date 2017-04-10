@@ -15379,7 +15379,8 @@ read_structure_type (struct die_info *die, struct dwarf2_cu *cu)
       type->set_code (TYPE_CODE_STRUCT);
     }
 
-  if (cu->language == language_cplus && die->tag == DW_TAG_class_type)
+  if ((cu->language == language_cplus || cu->language == language_d)
+      && die->tag == DW_TAG_class_type)
     TYPE_DECLARED_CLASS (type) = 1;
 
   /* Store the calling convention in the type if it's available in
