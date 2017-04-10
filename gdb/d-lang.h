@@ -20,6 +20,7 @@
 #if !defined (D_LANG_H)
 #define D_LANG_H 1
 
+#include "value.h"
 #include "symtab.h"
 
 /* Language specific builtin types for D.  Any additional types added
