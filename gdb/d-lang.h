@@ -20,6 +20,8 @@
 #if !defined (D_LANG_H)
 #define D_LANG_H 1
 
+struct type_print_options;
+
 #include "value.h"
 #include "symtab.h"
 
@@ -76,6 +78,12 @@ extern struct block_symbol d_lookup_symbol_nonlocal (const struct language_defn 
 
 extern struct block_symbol d_lookup_nested_symbol (struct type *, const char *,
 						   const struct block *);
+
+/* Defined in d-typeprint.c.  */
+
+extern void d_print_type (struct type *type, const char *varstring,
+			  struct ui_file *stream, int show, int level,
+			  const struct type_print_options *flags);
 
 /* Defined in d-valprint.c  */
 

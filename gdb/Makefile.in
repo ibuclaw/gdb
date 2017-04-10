@@ -1003,6 +1003,7 @@ COMMON_SFILES = \
 	ctfread.c \
 	d-lang.c \
 	d-namespace.c \
+	d-typeprint.c \
 	d-valprint.c \
 	dbxread.c \
 	dcache.c \

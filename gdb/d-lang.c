@@ -395,7 +395,7 @@ extern const struct language_defn d_language_defn =
   c_printchar,			/* Print a character constant.  */
   c_printstr,			/* Function to print string constant.  */
   c_emit_char,			/* Print a single char.  */
-  c_print_type,			/* Print a type using appropriate syntax.  */
+  d_print_type,			/* Print a type using appropriate syntax.  */
   c_print_typedef,		/* Print a typedef using appropriate
 				   syntax.  */
   d_val_print,			/* Print a value using appropriate syntax.  */
