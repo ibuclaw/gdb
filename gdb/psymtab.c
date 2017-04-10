@@ -632,6 +632,7 @@ psymtab_search_name (const char *name)
   switch (current_language->la_language)
     {
     case language_cplus:
+    case language_d:
       {
 	if (strchr (name, '('))
 	  {

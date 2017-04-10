@@ -200,6 +200,180 @@ d_language_arch_info (struct gdbarch *gdbarch,
   lai->bool_type_default = builtin->builtin_bool;
 }
 
+/* Return non-zero if TYPE is a dynamic array.
+   We assume CHECK_TYPEDEF has already been done.  */
+
+static int
+dynamic_array_p (struct type *type)
+{
+  /* D dynamic arrays don't necessarily have a name we can use.  */
+  if (TYPE_CODE (type) == TYPE_CODE_STRUCT
+      && TYPE_NFIELDS (type) == 2)
+    {
+      struct type *type0 = TYPE_FIELD_TYPE (type, 0);
+      struct type *type1 = TYPE_FIELD_TYPE (type, 1);
+
+      type0 = check_typedef (type0);
+      type1 = check_typedef (type1);
+
+      if (TYPE_CODE (type0) == TYPE_CODE_INT
+	  && strcmp (TYPE_FIELD_NAME (type, 0), "length") == 0
+	  && TYPE_CODE (type1) == TYPE_CODE_PTR
+	  && strcmp (TYPE_FIELD_NAME (type, 1), "ptr") == 0)
+	return 1;
+    }
+
+  return 0;
+}
+
+/* Given that PTR is a pointer or the ptr component of a dynamic array,
+   returns the D slice of HIGH-LOW elements starting at index LOW.  */
+static struct value *
+d_value_slice_ptr (struct value *ptr, struct type *index_type,
+		   LONGEST low, LONGEST high)
+{
+  struct type *base_type;
+  struct type *range_type;
+  struct type *slice_type;
+  CORE_ADDR base;
+
+  base_type = TYPE_TARGET_TYPE (value_type (ptr));
+  range_type = create_static_range_type (NULL, index_type,
+					 low, high - 1);
+  slice_type = create_array_type (NULL, base_type, range_type);
+
+  base = value_as_address (ptr)
+    + (longest_to_int (low) * TYPE_LENGTH (base_type));
+
+  return value_at_lazy (slice_type, base);
+}
+
+/* Expression evaluator for the D language family.  Most operations
+   are delegated to evaluate_subexp_standard; see that function for a
+   description of the arguments.  */
+
+static struct value *
+evaluate_subexp_d (struct type *expect_type, struct expression *exp,
+		   int *pos, enum noside noside)
+{
+  enum exp_opcode op;
+  int pc = *pos;
+
+  *pos += 1;
+  op = exp->elts[pc].opcode;
+
+  switch (op)
+    {
+    case BINOP_SUBSCRIPT:
+      {
+	struct value *array = evaluate_subexp (NULL_TYPE, exp, pos, noside);
+	struct value *index_val =
+	  evaluate_subexp (NULL_TYPE, exp, pos, noside);
+	struct type *type;
+
+	if (noside == EVAL_SKIP)
+	  goto nosideret;
+
+	type = value_type (array);
+	type = check_typedef (type);
+
+	if (dynamic_array_p (type))
+	  {
+	    /* Indexing a dynamic array.  Extract the underlying length
+	       and pointer fields.  Checks array bounds as per D rules.  */
+	    struct value *ptr = value_struct_elt (&array, NULL, "ptr", NULL,
+						  _("D dynamic array"));
+	    struct value *length = value_struct_elt (&array, NULL,
+						     "length", NULL,
+						     _("D dynamic array"));
+	    LONGEST upper_bound = value_as_long (length);
+	    LONGEST index = value_as_long (index_val);
+
+	    if (index < 0 || upper_bound <= index)
+	      error (_("index out of range"));
+
+	    return value_ind (value_ptradd (ptr, index));
+	  }
+
+	*pos = pc;
+	return evaluate_subexp_c (expect_type, exp, pos, noside);
+      }
+
+    case TERNOP_SLICE:
+      {
+	/* Slicing a dynamic array, static array or pointer, return the
+	   D slice of HIGH-LOW elements starting at index LOW.  */
+	struct value *array = evaluate_subexp (NULL_TYPE, exp, pos, noside);
+	struct value *low_bound_val =
+	  evaluate_subexp (NULL_TYPE, exp, pos, noside);
+	struct value *high_bound_val =
+	  evaluate_subexp (NULL_TYPE, exp, pos, noside);
+	LONGEST low_bound;
+	LONGEST high_bound;
+	struct type *type;
+
+	if (noside == EVAL_SKIP)
+	  goto nosideret;
+
+	low_bound = value_as_long (low_bound_val);
+	high_bound = value_as_long (high_bound_val);
+
+	type = value_type (array);
+	type = check_typedef (type);
+
+	if (TYPE_CODE (type) == TYPE_CODE_PTR)
+	  {
+	    /* Slicing a pointer, check array bounds as per D rules.  */
+	    if (high_bound < low_bound)
+	      error (_("slice out of range"));
+
+	    return d_value_slice_ptr (array,
+				      builtin_d_type (exp->gdbarch)->builtin_uint,
+				      low_bound, high_bound);
+	  }
+	else if (dynamic_array_p (type))
+	  {
+	    /* Slicing a dynamic array.  Extract the underlying length
+	       and pointer fields.  Checks array bounds as per D rules.  */
+	    struct value *ptr = value_struct_elt (&array, NULL, "ptr", NULL,
+						  _("D dynamic array"));
+	    struct value *length = value_struct_elt (&array, NULL,
+						     "length", NULL,
+						     _("D dynamic array"));
+	    LONGEST upper_bound = value_as_long (length);
+
+	    if (low_bound < 0
+		|| high_bound < low_bound
+		|| upper_bound < high_bound)
+	      error (_("slice out of range"));
+
+	    return d_value_slice_ptr (ptr, value_type (length),
+				      low_bound, high_bound);
+	  }
+	else
+	  return value_slice (array, low_bound, high_bound - low_bound);
+      }
+
+    default:
+      *pos -= 1;
+      return evaluate_subexp_c (expect_type, exp, pos, noside);
+    }
+
+nosideret:
+  return value_from_longest (builtin_type (exp->gdbarch)->builtin_int, 1);
+}
+
+
+static const struct exp_descriptor exp_descriptor_d =
+{
+  print_subexp_standard,
+  operator_length_standard,
+  operator_check_standard,
+  op_name_standard,
+  dump_subexp_body_standard,
+  evaluate_subexp_d
+};
+
 static const char *d_extensions[] =
 {
   ".d", NULL
@@ -215,7 +389,7 @@ extern const struct language_defn d_language_defn =
   array_row_major,
   macro_expansion_no,
   d_extensions,
-  &exp_descriptor_c,
+  &exp_descriptor_d,
   d_parse,
   null_post_parser,
   c_printchar,			/* Print a character constant.  */
