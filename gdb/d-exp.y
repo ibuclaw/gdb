@@ -631,6 +631,12 @@ BasicType2:
 		{ type_stack->push (tp_pointer); }
 |	'*' BasicType2
 		{ type_stack->push (tp_pointer); }
+|	'[' ']'
+		{ type_stack->push (-1);
+		  type_stack->push (tp_array); }
+|	'[' ']' BasicType2
+		{ type_stack->push (-1);
+		  type_stack->push (tp_array); }
 |	'[' INTEGER_LITERAL ']'
 		{ type_stack->push ($2.val);
 		  type_stack->push (tp_array); }
