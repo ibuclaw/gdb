@@ -610,12 +610,20 @@ dlang_function_type_noreturn (string *args, string *call, string *attr,
   mangled = dlang_call_convention (call ? call : &dump, mangled);
   mangled = dlang_attributes (attr ? attr : &dump, mangled);
 
-  if (args)
-    string_append (args, "(");
+  if (info->option & DMGL_PARAMS)
+    {
+      if (args)
+	string_append (args, "(");
 
-  mangled = dlang_function_args (args ? args : &dump, mangled, info);
-  if (args)
-    string_append (args, ")");
+      mangled = dlang_function_args (args ? args : &dump, mangled, info);
+      if (args)
+	string_append (args, ")");
+    }
+  else
+    {
+      /* Consume the function arguments without appending to ARGS.  */
+      mangled = dlang_function_args (&dump, mangled, info);
+    }
 
   string_delete (&dump);
   return mangled;
@@ -1547,7 +1555,8 @@ dlang_parse_mangle (string *decl, const char *mangled, struct dlang_info *info)
   if ((info->option & DMGL_VERBOSE) == 0)
     info->option |= DMGL_RET_DROP;
 
-  mangled = dlang_parse_qualified (decl, mangled, info, 1);
+  int suffix_modifiers = (info->option & DMGL_VERBOSE);
+  mangled = dlang_parse_qualified (decl, mangled, info, suffix_modifiers);
 
   if (mangled != NULL)
     {
@@ -1882,9 +1891,12 @@ dlang_parse_template (string *decl, const char *mangled,
   string_init (&args);
   mangled = dlang_template_args (&args, mangled, info);
 
-  string_append (decl, "!(");
-  string_appendn (decl, args.b, string_length (&args));
-  string_append (decl, ")");
+  if (info->option & DMGL_PARAMS)
+    {
+      string_append (decl, "!(");
+      string_appendn (decl, args.b, string_length (&args));
+      string_append (decl, ")");
+    }
 
   string_delete (&args);
 
@@ -1957,6 +1969,7 @@ dlang_demangle (const char *mangled, int option)
 int
 main (int argc ATTRIBUTE_UNUSED, char **argv ATTRIBUTE_UNUSED)
 {
+  int options = DMGL_PARAMS | DMGL_VERBOSE | DMGL_TYPES;
   string mangled;
   char *s;
 
@@ -1985,7 +1998,7 @@ main (int argc ATTRIBUTE_UNUSED, char **argv ATTRIBUTE_UNUSED)
 	  /* Attempt to demangle.  */
 	  string_need (&mangled, 1);
 	  *(mangled.p) = '\0';
-	  s = dlang_demangle (mangled.b, 0);
+	  s = dlang_demangle (mangled.b, options);
 
 	  /* If it worked, print the demangled name.  The original text is
 	     instead printed if it might not have been a mangled name.  */
