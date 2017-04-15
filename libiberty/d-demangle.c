@@ -1658,3 +1658,67 @@ dlang_demangle (const char *mangled, int option ATTRIBUTE_UNUSED)
   return demangled;
 }
 
+#ifdef STANDALONE_DEMANGLER
+
+/* Main entry for a demangling filter executable.  It will filter
+   stdin to stdout, replacing any recognized mangled D names with
+   their demangled equivalents.  */
+
+int
+main (int argc ATTRIBUTE_UNUSED, char **argv ATTRIBUTE_UNUSED)
+{
+  string mangled;
+  char *s;
+
+  string_init (&mangled);
+
+  /* Read all of input.  */
+  while (!feof (stdin))
+    {
+      /* Pile characters into mangled until we hit one that can't
+	 occur in a mangled name.  */
+      char c = getchar ();
+
+      while (!feof (stdin))
+	{
+	  /* Stop if we encountered a character than cannot possibly occur
+	     in a D mangled name.  */
+	  if (!ISIDNUM (c) && c != '.' && c != '$' && !(c & 0x80))
+	    break;
+
+	  string_appendn (&mangled, &c, 1);
+	  c = getchar ();
+	}
+
+      if (string_length (&mangled) > 0)
+	{
+	  /* Attempt to demangle.  */
+	  string_need (&mangled, 1);
+	  *(mangled.p) = '\0';
+	  s = dlang_demangle (mangled.b, 0);
+
+	  /* If it worked, print the demangled name.  The original text is
+	     instead printed if it might not have been a mangled name.  */
+	  if (s != NULL)
+	    {
+	      fputs (s, stdout);
+	      free (s);
+	    }
+	  else
+	    fputs (mangled.b, stdout);
+
+	  string_setlength (&mangled, 0);
+	}
+
+      /* If we haven't hit EOF yet, we've read one character that
+	 can't occur in a mangled name, so print it out.  */
+      if (!feof (stdin))
+	putchar (c);
+    }
+
+  string_delete (&mangled);
+
+  return 0;
+}
+
+#endif /* STANDALONE_DEMANGLER */
