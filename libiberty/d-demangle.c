@@ -184,7 +184,9 @@ static const char *dlang_parse_tuple (string *, const char *, state*);
 
 static const char *dlang_parse_template (string *, const char *, state*, long);
 
-static const char *dlang_lname(string *decl, const char *mangled, long len);
+static const char *dlang_lname (string *decl, const char *mangled, long len);
+
+static int dlang_call_convention_p (const char *mangled, state* options);
 
 
 /* Extract the number from MANGLED, and assign the result to RET.
