@@ -258,7 +258,7 @@ dlang_hexdigit (const char *mangled, char *ret)
 /* Extract the back reference position from MANGLED, and assign the result
    to RET.  Return the remaining string on success or NULL on failure.  */
 static const char *
-dlang_backref (const char *mangled, long *ret)
+dlang_decode_backref (const char *mangled, long *ret)
 {
   /* Return NULL if trying to extract something that isn't a digit.  */
   if (mangled == NULL || !ISALPHA (*mangled))
@@ -299,7 +299,7 @@ dlang_type_backref (string *decl, const char *mangled, struct dlang_info *info)
   if (qpos - info->s >= info->last_backref)
     return NULL;
 
-  mangled = dlang_backref (mangled, &refpos);
+  mangled = dlang_decode_backref (mangled, &refpos);
   if (mangled == NULL)
     return NULL;
 
@@ -335,7 +335,7 @@ dlang_symbol_name_p (const char *mangled, struct dlang_info *info)
   if (*mangled != 'Q')
     return 0;
 
-  mangled = dlang_backref (mangled + 1, &ret);
+  mangled = dlang_decode_backref (mangled + 1, &ret);
   if (mangled == NULL || ret <= 0 || ret > qref - info->s)
     return 0;
 
@@ -927,7 +927,7 @@ dlang_identifier (string *decl, const char *mangled, struct dlang_info *info)
       long refpos;
 
       mangled++;
-      mangled = dlang_backref (mangled, &refpos);
+      mangled = dlang_decode_backref (mangled, &refpos);
       if (mangled == NULL)
 	return NULL;
 
