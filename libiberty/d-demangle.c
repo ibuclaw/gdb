@@ -278,6 +278,19 @@ dlang_decode_backref (const char *mangled, long *ret)
   if (mangled == NULL || !ISALPHA (*mangled))
     return NULL;
 
+  /* Any identifier or non-basic type that has been emitted to the mangled
+     symbol before will not be emitted again, but is referenced by a special
+     sequence encoding the relative position of the original occurrence in the
+     mangled symbol name.
+
+     Numbers in back references are encoded with base 26 by upper case letters
+     A-Z for higher digits but lower case letters a-z for the last digit.
+
+	NumberBackRef:
+	    [a-z]
+	    [A-Z] NumberBackRef
+	    ^
+   */
   (*ret) = 0;
 
   while (ISALPHA (*mangled))
@@ -336,6 +349,12 @@ static const char *
 dlang_symbol_backref (string *decl, const char *mangled,
 		      struct dlang_info *info)
 {
+  /* An identifier back reference always points to a digit 0 to 9.
+
+	IdentifierBackRef:
+	    Q NumberBackRef
+	    ^
+   */
   const char *backref;
   long len;
 
@@ -361,6 +380,12 @@ static const char *
 dlang_type_backref (string *decl, const char *mangled, struct dlang_info *info,
 		    int is_function)
 {
+  /* An type back reference always points to a letter.
+
+	TypeBackRef:
+	    Q NumberBackRef
+	    ^
+   */
   const char *backref;
 
   /* If we appear to be moving backwards through the mangle string, then
