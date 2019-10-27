@@ -173,9 +173,6 @@ struct dlang_info
 static const char *dlang_function_args (string *, const char *,
 					struct dlang_info *);
 
-static const char *dlang_type_nofunction (string *, const char *,
-					  struct dlang_info *);
-
 static const char *dlang_type (string *, const char *, struct dlang_info *);
 
 static const char *dlang_value (string *, const char *, const char *, char);
@@ -693,22 +690,10 @@ dlang_function_args (string *decl, const char *mangled, struct dlang_info *info)
   return mangled;
 }
 
-/* Demangle the type (but FunctionType) from MANGLED and append it to DECL.
+/* Demangle the type from MANGLED and append it to DECL.
    Return the remaining string on success or NULL on failure.  */
 static const char *
 dlang_type (string *decl, const char *mangled, struct dlang_info *info)
-{
-  if (dlang_call_convention_p (mangled))
-    return dlang_function_type (decl, mangled, info);
-
-  return dlang_type_nofunction (decl, mangled, info);
-}
-
-/* Demangle the type (but FunctionType) from MANGLED and append it to DECL.
-   Return the remaining string on success or NULL on failure.  */
-static const char *
-dlang_type_nofunction (string *decl, const char *mangled,
-		       struct dlang_info *info)
 {
   if (mangled == NULL || *mangled == '\0')
     return NULL;
@@ -1533,7 +1518,7 @@ dlang_parse_mangle (string *decl, const char *mangled, struct dlang_info *info)
 	  string type;
 
 	  string_init (&type);
-	  mangled = dlang_type_nofunction (&type, mangled, info);
+	  mangled = dlang_type (&type, mangled, info);
 	  string_delete (&type);
 	}
     }
