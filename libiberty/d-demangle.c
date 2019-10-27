@@ -1589,7 +1589,7 @@ dlang_parse_qualified (string *decl, const char *mangled,
 	  if (suffix_modifiers)
 	    string_appendn (decl, mods.b, string_length (&mods));
 
-	  if (mangled == NULL)
+	  if (mangled == NULL || *mangled == '\0')
 	    {
 	      /* Did not match the rule we were looking for.  */
 	      mangled = start;
