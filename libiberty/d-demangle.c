@@ -170,6 +170,9 @@ struct dlang_info
 };
 
 /* Prototypes for forward referenced functions */
+static const char *dlang_function_type (string *, const char *,
+					struct dlang_info *);
+
 static const char *dlang_function_args (string *, const char *,
 					struct dlang_info *);
 
@@ -352,9 +355,11 @@ dlang_symbol_backref (string *decl, const char *mangled,
 }
 
 /* Demangle a back referenced type from MANGLED and append it to DECL.
+   IS_FUNCTION is 1 if the back referenced type is expected to be a function.
    Return the remaining string on success or NULL on failure.  */
 static const char *
-dlang_type_backref (string *decl, const char *mangled, struct dlang_info *info)
+dlang_type_backref (string *decl, const char *mangled, struct dlang_info *info,
+		    int is_function)
 {
   const char *backref;
 
@@ -369,8 +374,12 @@ dlang_type_backref (string *decl, const char *mangled, struct dlang_info *info)
   /* Get position of the back reference.  */
   mangled = dlang_backref (mangled, &backref, info);
 
-  /* Must point to a type identifier.  */
-  backref = dlang_type (decl, backref, info);
+  /* Must point to a type.  */
+  if (is_function)
+    backref = dlang_function_type (decl, backref, info);
+  else
+    backref = dlang_type (decl, backref, info);
+
   info->last_backref = save_refpos;
 
   if (backref == NULL)
@@ -802,7 +811,12 @@ dlang_type (string *decl, const char *mangled, struct dlang_info *info)
       mangled = dlang_type_modifiers (&mods, mangled);
       szmods = string_length (&mods);
 
-      mangled = dlang_function_type (decl, mangled, info);
+      /* Back referenced function type.  */
+      if (*mangled == 'Q')
+	mangled = dlang_type_backref (decl, mangled, info, 1);
+      else
+	mangled = dlang_function_type (decl, mangled, info);
+
       string_append (decl, "delegate");
       string_appendn (decl, mods.b, szmods);
 
@@ -927,7 +941,7 @@ dlang_type (string *decl, const char *mangled, struct dlang_info *info)
 
     /* Back referenced type.  */
     case 'Q':
-      return dlang_type_backref (decl, mangled, info);
+      return dlang_type_backref (decl, mangled, info, 0);
 
     default: /* unhandled */
       return NULL;
