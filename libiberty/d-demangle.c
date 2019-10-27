@@ -165,8 +165,6 @@ struct dlang_info
 {
   /* The string we are demangling.  */
   const char *s;
-  /* The options passed to the demangler.  */
-  int flags;
   /* The index of the last back reference.  */
   int last_backref;
 };
@@ -1500,19 +1498,11 @@ dlang_parse_mangle (string *decl, const char *mangled, struct dlang_info *info)
 	mangled++;
       else
 	{
+	  /* Discard the declaration or return type.  */
 	  string type;
 
-	  /* Save the declaration type for prepending at the beginning of the
-	     demangled result if needed.  */
 	  string_init (&type);
 	  mangled = dlang_type_nofunction (&type, mangled, info);
-
-	  if (info->flags & DMGL_TYPES)
-	    {
-	      string_prepend (decl, " ");
-	      string_prependn (decl, type.b, string_length (&type));
-	    }
-
 	  string_delete (&type);
 	}
     }
@@ -1785,12 +1775,9 @@ dlang_parse_template (string *decl, const char *mangled,
   string_init (&args);
   mangled = dlang_template_args (&args, mangled, info);
 
-  if (info->flags & DMGL_PARAMS)
-    {
-      string_append (decl, "!(");
-      string_appendn (decl, args.b, string_length (&args));
-      string_append (decl, ")");
-    }
+  string_append (decl, "!(");
+  string_appendn (decl, args.b, string_length (&args));
+  string_append (decl, ")");
 
   string_delete (&args);
 
@@ -1803,11 +1790,10 @@ dlang_parse_template (string *decl, const char *mangled,
 
 /* Initialize the information structure we use to pass around information.  */
 static void
-dlang_demangle_init_info (const char *mangled, int options, int last_backref,
+dlang_demangle_init_info (const char *mangled, int last_backref,
 			  struct dlang_info *info)
 {
   info->s = mangled;
-  info->flags = options;
   info->last_backref = last_backref;
 }
 
@@ -1815,7 +1801,7 @@ dlang_demangle_init_info (const char *mangled, int options, int last_backref,
    signature on success or NULL on failure.  */
 
 char *
-dlang_demangle (const char *mangled, int options)
+dlang_demangle (const char *mangled, int options ATTRIBUTE_UNUSED)
 {
   string decl;
   char *demangled = NULL;
@@ -1836,9 +1822,7 @@ dlang_demangle (const char *mangled, int options)
     {
       struct dlang_info info;
 
-      /* FIXME: Testsuite needs updating.  */
-      dlang_demangle_init_info (mangled, (DMGL_PARAMS | DMGL_VERBOSE),
-				strlen (mangled), &info);
+      dlang_demangle_init_info (mangled, strlen (mangled), &info);
       mangled = dlang_parse_mangle (&decl, mangled, &info);
       if (mangled == NULL || *mangled != '\0')
 	string_delete (&decl);
@@ -1863,7 +1847,6 @@ dlang_demangle (const char *mangled, int options)
 int
 main (int argc ATTRIBUTE_UNUSED, char **argv ATTRIBUTE_UNUSED)
 {
-  int options = DMGL_PARAMS | DMGL_VERBOSE | DMGL_TYPES;
   string mangled;
   char *s;
 
@@ -1896,7 +1879,7 @@ main (int argc ATTRIBUTE_UNUSED, char **argv ATTRIBUTE_UNUSED)
 	  *(mangled.p) = '\0';
 	  if (mangled.b[0] == '_' && mangled.b[1] == 'D')
 	    {
-	      s = dlang_demangle (mangled.b, options);
+	      s = dlang_demangle (mangled.b, 0);
 	      num_mangled++;
 	    }
 	  else
