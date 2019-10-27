@@ -1734,6 +1734,16 @@ dlang_template_args (string *decl, const char *mangled, struct dlang_info *info)
 	  mangled++;
 	  type = *mangled;
 
+	  if (type == 'Q')
+	    {
+	      /* Value type is a back reference, peek at the real type.  */
+	      const char *backref;
+	      if (dlang_backref (mangled, &backref, info) == NULL)
+		return NULL;
+
+	      type = *backref;
+	    }
+
 	  /* In the few instances where the type is actually desired in
 	     the output, it should precede the value from dlang_value.  */
 	  string_init (&name);
