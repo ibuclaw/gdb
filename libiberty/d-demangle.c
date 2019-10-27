@@ -169,6 +169,9 @@ struct dlang_info
   int last_backref;
 };
 
+/* Pass as the LEN to dlang_parse_template if symbol length is not known.  */
+enum { TLEN_UNKNOWN = -1 };
+
 /* Prototypes for forward referenced functions */
 static const char *dlang_function_type (string *, const char *,
 					struct dlang_info *);
@@ -986,9 +989,10 @@ dlang_identifier (string *decl, const char *mangled, struct dlang_info *info)
   if (*mangled == 'Q')
     return dlang_symbol_backref (decl, mangled, info);
 
+  /* May be a template instance without a length prefix.  */
   if (mangled[0] == '_' && mangled[1] == '_'
       && (mangled[2] == 'T' || mangled[2] == 'U'))
-    return dlang_parse_template (decl, mangled, info, -1);
+    return dlang_parse_template (decl, mangled, info, TLEN_UNKNOWN);
 
   const char *endptr = dlang_number (mangled, &len);
 
@@ -1000,7 +1004,7 @@ dlang_identifier (string *decl, const char *mangled, struct dlang_info *info)
 
   mangled = endptr;
 
-  /* May be a template instance.  */
+  /* May be a template instance with a length prefix.  */
   if (len >= 5 && mangled[0] == '_' && mangled[1] == '_'
       && (mangled[2] == 'T' || mangled[2] == 'U'))
     return dlang_parse_template (decl, mangled, info, len);
@@ -1843,7 +1847,7 @@ dlang_parse_template (string *decl, const char *mangled,
   string_delete (&args);
 
   /* Check for template name length mismatch.  */
-  if (len != -1 && mangled && (mangled - start) != len)
+  if (len != TLEN_UNKNOWN && mangled && (mangled - start) != len)
     return NULL;
 
   return mangled;
