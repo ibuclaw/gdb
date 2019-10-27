@@ -191,8 +191,6 @@ static const char *dlang_parse_template (string *, const char *,
 
 static const char *dlang_lname (string *, const char *, long);
 
-static int dlang_call_convention_p (const char *mangled);
-
 
 /* Extract the number from MANGLED, and assign the result to RET.
    Return the remaining string on success or NULL on failure.  */
@@ -250,6 +248,22 @@ dlang_hexdigit (const char *mangled, char *ret)
   mangled += 2;
 
   return mangled;
+}
+
+/* Extract the function calling convention from MANGLED and
+   return 1 on success or 0 on failure.  */
+static int
+dlang_call_convention_p (const char *mangled)
+{
+  switch (*mangled)
+    {
+    case 'F': case 'U': case 'V':
+    case 'W': case 'R': case 'Y':
+      return 1;
+
+    default:
+      return 0;
+    }
 }
 
 /* Extract the back reference position from MANGLED, and assign the result
@@ -465,33 +479,6 @@ dlang_type_modifiers (string *decl, const char *mangled)
 
     default:
       return mangled;
-    }
-}
-
-/* Extract the function calling convention from MANGLED and
-   return 1 on success or 0 on failure.  */
-static int
-dlang_call_convention_p (const char *mangled)
-{
-  if (mangled && *mangled == 'M')
-    mangled++;
-
-  // skip modifiers
-  string mods;
-  string_init (&mods);
-  mangled = dlang_type_modifiers (&mods, mangled);
-  if (mangled == NULL)
-    return 0;
-  string_delete (&mods);
-
-  switch (*mangled)
-    {
-    case 'F': case 'U': case 'V':
-    case 'W': case 'R': case 'Y':
-      return 1;
-
-    default:
-      return 0;
     }
 }
 
@@ -1566,7 +1553,7 @@ dlang_parse_qualified (string *decl, const char *mangled,
 	 next encoded length or mangle type, then this is not a continuation of
 	 a qualified name, in which case we backtrack and return the current
 	 unconsumed position of the mangled decl.  */
-      if (mangled && dlang_call_convention_p (mangled))
+      if (mangled && (*mangled == 'M' || dlang_call_convention_p (mangled)))
 	{
 	  string mods;
 	  const char *start = mangled;
