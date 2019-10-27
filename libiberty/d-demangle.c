@@ -288,16 +288,20 @@ dlang_decode_backref (const char *mangled, long *ret)
   return NULL;
 }
 
-/* Demangle a back referenced type from MANGLED and append it to DECL.
-   Return the remaining string on success or NULL on failure.  */
+/* Extract the symbol pointed at by the back reference and assign the result
+   to RET.  Return the remaining string on success or NULL on failure.  */
 static const char *
-dlang_type_backref (string *decl, const char *mangled, struct dlang_info *info)
+dlang_backref (const char *mangled, const char **ret, struct dlang_info *info)
 {
-  const char *qpos = mangled - 1; // position of 'Q'
-  long refpos;
+  (*ret) = NULL;
 
-  if (qpos - info->s >= info->last_backref)
+  if (mangled == NULL || *mangled != 'Q')
     return NULL;
+
+  /* Position of 'Q'.  */
+  const char *qpos = mangled;
+  long refpos;
+  mangled++;
 
   mangled = dlang_decode_backref (mangled, &refpos);
   if (mangled == NULL)
@@ -306,12 +310,59 @@ dlang_type_backref (string *decl, const char *mangled, struct dlang_info *info)
   if (refpos <= 0 || refpos > qpos - info->s)
     return NULL;
 
+  /* Set the position of the back reference.  */
+  (*ret) = qpos - refpos;
+
+  return mangled;
+}
+
+/* Demangle a back referenced symbol from MANGLED and append it to DECL.
+   Return the remaining string on success or NULL on failure.  */
+static const char *
+dlang_symbol_backref (string *decl, const char *mangled,
+		      struct dlang_info *info)
+{
+  const char *backref;
+  long len;
+
+  /* Get position of the back reference.  */
+  mangled = dlang_backref (mangled, &backref, info);
+
+  /* Must point to a simple identifier.  */
+  backref = dlang_number (backref, &len);
+  if (backref == NULL)
+    return NULL;
+
+  backref = dlang_lname (decl, backref, len);
+  if (backref == NULL)
+    return NULL;
+
+  return mangled;
+}
+
+/* Demangle a back referenced type from MANGLED and append it to DECL.
+   Return the remaining string on success or NULL on failure.  */
+static const char *
+dlang_type_backref (string *decl, const char *mangled, struct dlang_info *info)
+{
+  const char *backref;
+
+  /* If we appear to be moving backwards through the mangle string, then
+     bail as this may be a recursive back reference.  */
+  if (mangled - info->s >= info->last_backref)
+    return NULL;
+
   int save_refpos = info->last_backref;
-  info->last_backref = qpos - info->s;
-  qpos = dlang_type (decl, qpos - refpos, info);
+  info->last_backref = mangled - info->s;
+
+  /* Get position of the back reference.  */
+  mangled = dlang_backref (mangled, &backref, info);
+
+  /* Must point to a type identifier.  */
+  backref = dlang_type (decl, backref, info);
   info->last_backref = save_refpos;
 
-  if (qpos == NULL)
+  if (backref == NULL)
     return NULL;
 
   return mangled;
@@ -664,10 +715,6 @@ dlang_type_nofunction (string *decl, const char *mangled,
 
   switch (*mangled)
     {
-    case 'Q':
-      mangled++;
-      mangled = dlang_type_backref (decl, mangled, info);
-      return mangled;
     case 'O': /* shared(T) */
       mangled++;
       string_append (decl, "shared(");
@@ -906,6 +953,10 @@ dlang_type_nofunction (string *decl, const char *mangled,
 	}
       return NULL;
 
+    /* Back referenced type.  */
+    case 'Q':
+      return dlang_type_backref (decl, mangled, info);
+
     default: /* unhandled */
       return NULL;
     }
@@ -918,31 +969,11 @@ dlang_identifier (string *decl, const char *mangled, struct dlang_info *info)
 {
   long len;
 
-  if (mangled == NULL)
+  if (mangled == NULL || *mangled == '\0')
     return NULL;
 
   if (*mangled == 'Q')
-    {
-      const char *qpos = mangled; // position of 'Q'
-      long refpos;
-
-      mangled++;
-      mangled = dlang_decode_backref (mangled, &refpos);
-      if (mangled == NULL)
-	return NULL;
-
-      if (refpos <= 0 || refpos > qpos - info->s)
-	return NULL;
-      
-      // must point to a simple identifier
-      qpos = dlang_number (qpos - refpos, &len);
-      if (qpos == NULL)
-	return NULL;
-
-      qpos = dlang_lname (decl, qpos, len);
-
-      return qpos ? mangled : NULL;
-    }
+    return dlang_symbol_backref (decl, mangled, info);
 
   if (mangled[0] == '_' && mangled[1] == '_'
       && (mangled[2] == 'T' || mangled[2] == 'U'))
