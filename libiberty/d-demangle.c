@@ -181,7 +181,7 @@ static const char *dlang_type (string *, const char *, struct dlang_info *);
 static const char *dlang_value (string *, const char *, const char *, char);
 
 static const char *dlang_parse_qualified (string *, const char *,
-					  struct dlang_info *);
+					  struct dlang_info *, int);
 
 static const char *dlang_parse_mangle (string *, const char *,
 				       struct dlang_info *);
@@ -772,7 +772,7 @@ dlang_type_nofunction (string *decl, const char *mangled,
     case 'E': /* enum T */
     case 'T': /* typedef T */
       mangled++;
-      return dlang_parse_qualified (decl, mangled, info);
+      return dlang_parse_qualified (decl, mangled, info, 0);
     case 'D': /* delegate T */
     {
       string mods;
@@ -1489,7 +1489,7 @@ dlang_parse_mangle (string *decl, const char *mangled, struct dlang_info *info)
    */
   mangled += 2;
 
-  mangled = dlang_parse_qualified (decl, mangled, info);
+  mangled = dlang_parse_qualified (decl, mangled, info, 1);
 
   if (mangled != NULL)
     {
@@ -1511,10 +1511,11 @@ dlang_parse_mangle (string *decl, const char *mangled, struct dlang_info *info)
 }
 
 /* Extract and demangle the qualified symbol in MANGLED and append it to DECL.
+   SUFFIX_MODIFIERS is 1 if we are printing modifiers on this after the symbol.
    Returns the remaining signature on success or NULL on failure.  */
 static const char *
 dlang_parse_qualified (string *decl, const char *mangled,
-		       struct dlang_info *info)
+		       struct dlang_info *info, int suffix_modifiers)
 {
   /* Qualified names are identifiers separated by their encoded length.
      Nested functions also encode their argument types without specifying
@@ -1546,24 +1547,30 @@ dlang_parse_qualified (string *decl, const char *mangled,
       mangled = dlang_identifier (decl, mangled, info);
 
       /* Consume the encoded arguments.  However if this is not followed by the
-	 next encoded length, then this is not a continuation of a qualified
-	 name, in which case we backtrack and return the current unconsumed
-	 position of the mangled decl.  */
+	 next encoded length or mangle type, then this is not a continuation of
+	 a qualified name, in which case we backtrack and return the current
+	 unconsumed position of the mangled decl.  */
       if (mangled && dlang_call_convention_p (mangled))
 	{
+	  string mods;
 	  const char *start = mangled;
 	  int saved = string_length (decl);
 
-	  /* Skip over 'this' parameter.and its modifiers  */
+	  /* Save the type modifiers for appending at the end if needed.  */
+	  string_init (&mods);
+
+	  /* Skip over 'this' parameter and type modifiers.  */
 	  if (*mangled == 'M')
 	    {
 	      mangled++;
-	      mangled = dlang_type_modifiers (decl, mangled);
+	      mangled = dlang_type_modifiers (&mods, mangled);
 	      string_setlength (decl, saved);
 	    }
 
-	  mangled = dlang_function_type_noreturn (decl, NULL, NULL, mangled,
-						  info);
+	  mangled = dlang_function_type_noreturn (decl, NULL, NULL,
+						  mangled, info);
+	  if (suffix_modifiers)
+	    string_appendn (decl, mods.b, string_length (&mods));
 
 	  if (mangled == NULL)
 	    {
@@ -1571,6 +1578,8 @@ dlang_parse_qualified (string *decl, const char *mangled,
 	      mangled = start;
 	      string_setlength (decl, saved);
 	    }
+
+	  string_delete (&mods);
 	}
     }
   while (mangled && dlang_symbol_name_p (mangled, info));
@@ -1616,7 +1625,7 @@ dlang_template_symbol_param (string *decl, const char *mangled,
     return dlang_parse_mangle (decl, mangled, info);
 
   if (*mangled == 'Q')
-    return dlang_parse_qualified (decl, mangled, info);
+    return dlang_parse_qualified (decl, mangled, info, 0);
 
   long len;
   const char *endptr = dlang_number (mangled, &len);
@@ -1649,7 +1658,7 @@ dlang_template_symbol_param (string *decl, const char *mangled,
       /* Check whether template parameter is a function with a valid
 	 return type or an untyped identifier.  */
       if (dlang_symbol_name_p (mangled, info))
-	mangled = dlang_parse_qualified (decl, mangled, info);
+	mangled = dlang_parse_qualified (decl, mangled, info, 0);
       else if (strncmp (mangled, "_D", 2) == 0
 	       && dlang_symbol_name_p (mangled + 2, info))
 	mangled = dlang_parse_mangle (decl, mangled, info);
