@@ -167,6 +167,8 @@ struct dlang_info
   const char *s;
   /* The index of the last back reference.  */
   int last_backref;
+  /* Demangler options passed to dlang_demangle.  */
+  int option;
 };
 
 /* Pass as the LEN to dlang_parse_template if symbol length is not known.  */
@@ -1539,6 +1541,12 @@ dlang_parse_mangle (string *decl, const char *mangled, struct dlang_info *info)
    */
   mangled += 2;
 
+  const int old_option = info->option;
+  /* Drop ret types unconditionally for non-top level declarations,
+     unless verbose mode is requested.  */
+  if ((info->option & DMGL_VERBOSE) == 0)
+    info->option |= DMGL_RET_DROP;
+
   mangled = dlang_parse_qualified (decl, mangled, info, 1);
 
   if (mangled != NULL)
@@ -1548,14 +1556,44 @@ dlang_parse_mangle (string *decl, const char *mangled, struct dlang_info *info)
 	mangled++;
       else
 	{
-	  /* Discard the declaration or return type.  */
 	  string type;
 
 	  string_init (&type);
+
 	  mangled = dlang_type (&type, mangled, info);
+
+	  /* If requested return the return type of a function or type of
+	     a variable.  */
+	  if ((old_option & DMGL_RET_DROP) == 0)
+	    {
+	      if ((old_option & DMGL_RET_POSTFIX) != 0)
+	        {
+	          /* If this doesn't hold then there is a serious bug in the
+	             implementation, independent what input was.  */
+	          if (!(decl->b < decl->p))
+	            {
+	              string_delete (&type);
+	              return NULL;
+	            }
+	          /* Try not to put space after functions in postfix
+	             notation.  */
+	          char prev_char = *(decl->p - 1);
+	          if (prev_char != ')' && prev_char != ' ')
+	              string_append (decl, " ");
+	          string_appendn (decl, type.b, string_length (&type));
+	        }
+	      else
+	        {
+	          string_prepend (decl, " ");
+	          string_prependn (decl, type.b, string_length (&type));
+	        }
+	    }
+
 	  string_delete (&type);
 	}
     }
+
+  info->option = old_option;
 
   return mangled;
 }
@@ -1860,17 +1898,18 @@ dlang_parse_template (string *decl, const char *mangled,
 /* Initialize the information structure we use to pass around information.  */
 static void
 dlang_demangle_init_info (const char *mangled, int last_backref,
-			  struct dlang_info *info)
+			  int option, struct dlang_info *info)
 {
   info->s = mangled;
   info->last_backref = last_backref;
+  info->option = option;
 }
 
 /* Extract and demangle the symbol in MANGLED.  Returns the demangled
    signature on success or NULL on failure.  */
 
 char *
-dlang_demangle (const char *mangled, int option ATTRIBUTE_UNUSED)
+dlang_demangle (const char *mangled, int option)
 {
   string decl;
   char *demangled = NULL;
@@ -1891,7 +1930,7 @@ dlang_demangle (const char *mangled, int option ATTRIBUTE_UNUSED)
     {
       struct dlang_info info;
 
-      dlang_demangle_init_info (mangled, strlen (mangled), &info);
+      dlang_demangle_init_info (mangled, strlen (mangled), option, &info);
       mangled = dlang_parse_mangle (&decl, mangled, &info);
 
       /* Check that the entire symbol was successfully demangled.  */
