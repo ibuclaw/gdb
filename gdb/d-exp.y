@@ -346,20 +346,20 @@ PostfixExpression:
 |	PostfixExpression '.' COMPLETE
 		{ struct stoken s;
 		  pstate->mark_struct_expression ();
-		  write_exp_elt_opcode (pstate, STRUCTOP_STRUCT);
+		  write_exp_elt_opcode (pstate, STRUCTOP_PTR);
 		  s.ptr = "";
 		  s.length = 0;
 		  write_exp_string (pstate, s);
-		  write_exp_elt_opcode (pstate, STRUCTOP_STRUCT); }
+		  write_exp_elt_opcode (pstate, STRUCTOP_PTR); }
 |	PostfixExpression '.' IDENTIFIER
-		{ write_exp_elt_opcode (pstate, STRUCTOP_STRUCT);
+		{ write_exp_elt_opcode (pstate, STRUCTOP_PTR);
 		  write_exp_string (pstate, $3);
-		  write_exp_elt_opcode (pstate, STRUCTOP_STRUCT); }
+		  write_exp_elt_opcode (pstate, STRUCTOP_PTR); }
 |	PostfixExpression '.' IDENTIFIER COMPLETE
 		{ pstate->mark_struct_expression ();
-		  write_exp_elt_opcode (pstate, STRUCTOP_STRUCT);
+		  write_exp_elt_opcode (pstate, STRUCTOP_PTR);
 		  write_exp_string (pstate, $3);
-		  write_exp_elt_opcode (pstate, STRUCTOP_STRUCT); }
+		  write_exp_elt_opcode (pstate, STRUCTOP_PTR); }
 |	PostfixExpression '.' SIZEOF_KEYWORD
 		{ write_exp_elt_opcode (pstate, UNOP_SIZEOF); }
 |	PostfixExpression INCREMENT
